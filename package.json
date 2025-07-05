@@ -1,0 +1,64 @@
+{
+  "name": "vue-router-plugin-system",
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.11.0",
+  "description": "Provides a lightweight plugin system and utilities for Vue Router.",
+  "author": "leihaohao <https://github.com/l246804>",
+  "license": "MIT",
+  "homepage": "https://github.com/vue-spark/vue-router-plugin-system#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vue-spark/vue-router-plugin-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vue-spark/vue-router-plugin-system/issues"
+  },
+  "keywords": [],
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "dev": "tsdown --watch",
+    "build": "tsdown",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier . --write --cache --cache-location ./node_modules/.cache/.prettier-cache",
+    "lint": "eslint . --cache --cache-location ./node_modules/.cache/.eslint-cache",
+    "lint:fix": "pnpm run lint --fix",
+    "release": "bumpp && pnpm publish",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.16.2",
+    "@sxzz/prettier-config": "^2.2.3",
+    "@tsconfig/node22": "^22.0.2",
+    "@types/node": "^22.16.0",
+    "@vue/tsconfig": "^0.7.0",
+    "bumpp": "^10.2.0",
+    "eslint": "^9.30.1",
+    "eslint-plugin-format": "^1.0.1",
+    "happy-dom": "^18.0.1",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.6.2",
+    "simple-git-hooks": "^2.13.0",
+    "tsdown": "^0.12.9",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  }
+}
