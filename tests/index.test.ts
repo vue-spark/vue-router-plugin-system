@@ -1,9 +1,8 @@
 import type { RouterPlugin } from '../src/plugin'
 import { describe, expect, it, vi } from 'vitest'
-import { computed, createApp, watch } from 'vue'
+import { computed, createApp, ref, watch } from 'vue'
 import { createMemoryHistory } from 'vue-router'
-import { createRouter } from '../src/index'
-import { ref } from 'vue'
+import { createRouter, createVueRouterPlugin } from '../src/index'
 
 describe.concurrent('vue Router Plugin System', () => {
   // 测试插件基础功能
@@ -101,6 +100,30 @@ describe.concurrent('vue Router Plugin System', () => {
 
     const app = createApp(() => null)
     app.use(router)
+    app.unmount()
+
+    expect(logSpy).toHaveBeenCalledTimes(2)
+    counter.value = 2
+    expect(logSpy).toHaveBeenCalledTimes(2)
+  })
+
+  // 测试从 vue app 进行安装并且功能正常
+  it('should install from vue app', () => {
+    const counter = ref(0)
+    const logSpy = vi.fn()
+    const mockPlugin = createVueRouterPlugin(() => {
+      const doubled = computed(() => counter.value * 2)
+      watch(doubled, logSpy, { immediate: true, flush: 'sync' })
+      counter.value = 1
+    })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [],
+    })
+
+    const app = createApp(() => null)
+    app.use(router).use(mockPlugin)
     app.unmount()
 
     expect(logSpy).toHaveBeenCalledTimes(2)

@@ -7,5 +7,8 @@ export default defineConfig([
     dts: {
       tsconfig: 'tsconfig.lib.json',
     },
+    define: {
+      __DEV__: 'process.env.NODE_ENV !== "production"',
+    },
   },
 ])

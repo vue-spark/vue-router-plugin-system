@@ -1,6 +1,9 @@
 import type { App } from 'vue'
 import type { Router } from 'vue-router'
 
+export type RouterPluginUninstallHandler = () => void
+export type RouterPluginRunWithAppHandler = (app: App) => void
+
 export interface RouterPluginContext {
   /**
    * The router instance.
@@ -9,11 +12,11 @@ export interface RouterPluginContext {
   /**
    * Runs a function with the vue app.
    */
-  runWithApp: (fn: (app: App) => void) => void
+  runWithApp: (handler: RouterPluginRunWithAppHandler) => void
   /**
    * Register a function to be called when the plugin is uninstalled.
    */
-  onUninstall: (fn: () => void) => void
+  onUninstall: (handler: RouterPluginUninstallHandler) => void
 }
 
 export interface RouterPlugin {

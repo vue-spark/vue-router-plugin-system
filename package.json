@@ -14,7 +14,11 @@
   "bugs": {
     "url": "https://github.com/vue-spark/vue-router-plugin-system/issues"
   },
-  "keywords": ["vue", "vue-router", "plugin"],
+  "keywords": [
+    "vue",
+    "vue-router",
+    "plugin"
+  ],
   "exports": {
     ".": "./dist/index.js",
     "./package.json": "./package.json"
@@ -38,7 +42,8 @@
     "lint": "eslint . --cache --cache-location ./node_modules/.cache/.eslint-cache",
     "lint:fix": "pnpm run lint --fix",
     "release": "bumpp && pnpm publish",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "prepare": "simple-git-hooks"
   },
   "peerDependencies": {
     "vue": "^3.0.0",
