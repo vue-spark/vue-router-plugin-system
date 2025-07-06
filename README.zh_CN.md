@@ -72,35 +72,37 @@ router.isNavigating.value
 
 ### 模式二：Vue 插件模式（兼容方案）
 
-**1. 创建 Vue 插件**
+**1. 开发插件**
 
 ```ts
-import { createVueRouterPlugin } from 'vue-router-plugin-system'
+import type { RouterPlugin } from 'vue-router-plugin-system'
+import { ref } from 'vue'
 
-export const NavigationStatePlugin = createVueRouterPlugin((ctx) => {
+export const NavigationStatePlugin: RouterPlugin = (ctx) => {
   // 插件实现逻辑同上
-})
+}
 ```
 
 **2. 应用集成**
 
 ```ts
 // main.ts
+import { asVuePlugin } from 'vue-router-plugin-system'
+
 const app = createApp(App)
 app.use(router) // 先挂载路由
-app.use(NavigationStatePlugin) // 后注册插件
+app.use(asVuePlugin(NavigationStatePlugin)) // 后注册插件
 ```
 
 ---
 
 ## ⚠️ 模式对比
 
-| 特性           | Vue Router 插件模式   | Vue 插件模式       |
-| -------------- | --------------------- | ------------------ |
-| 初始化顺序     | 优先于应用逻辑        | 依赖客户端使用顺序 |
-| 导航守卫优先级 | 更高                  | 依赖注册顺序       |
-| 响应式管理     | 自动清理              | 自动清理           |
-| 依赖要求       | 需要本库 createRouter | 无需本库           |
+| 特性           | Vue Router 插件模式 | Vue 插件模式       |
+| -------------- | ------------------- | ------------------ |
+| 初始化顺序     | 优先于应用逻辑      | 依赖客户端使用顺序 |
+| 导航守卫优先级 | 更高                | 依赖注册顺序       |
+| 响应式管理     | 自动清理            | 自动清理           |
 
 ---
 
@@ -127,13 +129,6 @@ interface RouterPlugin {
    * 插件初始化函数
    */
   (ctx: RouterPluginContext): void
-}
-
-interface VueRouterPlugin extends RouterPlugin {
-  /**
-   * Vue 插件安装函数
-   */
-  install: (app: App) => void
 }
 ```
 

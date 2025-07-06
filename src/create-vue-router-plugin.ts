@@ -1,8 +1,10 @@
 import type { App } from 'vue'
 import type { RouterPlugin } from './plugin'
-import { prepareInstall } from './prepare-install'
-import { setupPlugin } from './setup-plugin'
+import { asVuePlugin } from './as-vue-plugin'
 
+/**
+ * @deprecated
+ */
 export interface VueRouterPlugin extends RouterPlugin {
   /**
    * Install the plugin.
@@ -13,6 +15,9 @@ export interface VueRouterPlugin extends RouterPlugin {
 
 /**
  * Create a {@link VueRouterPlugin} from a {@link RouterPlugin}.
+ *
+ * @deprecated Please use {@link asVuePlugin} instead.
+ *
  * @param plugin {@link RouterPlugin}
  * @returns Returns a {@link VueRouterPlugin}
  * @example
@@ -25,18 +30,5 @@ export interface VueRouterPlugin extends RouterPlugin {
  * app.use(router).use(SomePlugin)
  * ```
  */
-export function createVueRouterPlugin(plugin: RouterPlugin): VueRouterPlugin {
-  return Object.assign(plugin, {
-    install(app: App) {
-      const router = app.config.globalProperties.$router
-      if (!router) {
-        throw new Error(
-          '[vue-router-plugin-system] Please install vue-router first.',
-        )
-      }
-
-      prepareInstall({ app, router })
-      setupPlugin({ router, plugin })
-    },
-  })
-}
+export const createVueRouterPlugin: (plugin: RouterPlugin) => VueRouterPlugin =
+  asVuePlugin
