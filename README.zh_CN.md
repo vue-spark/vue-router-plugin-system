@@ -115,7 +115,7 @@ interface RouterPluginContext {
    */
   router: Router
   /**
-   * 使用 vue app 实例执行回调函数
+   * 使用 Vue app 实例执行回调函数
    */
   runWithApp: (handler: RouterPluginRunWithAppHandler) => void
   /**
