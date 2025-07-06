@@ -2,7 +2,7 @@ import { antfu } from '@antfu/eslint-config'
 
 export default antfu(
   {
-    ignores: [".github"],
+    ignores: ['.github'],
     type: 'lib',
     formatters: true,
     lessOpinionated: true,
