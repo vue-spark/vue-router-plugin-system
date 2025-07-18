@@ -1,8 +1,8 @@
 # vue-router-plugin-system
 
-[中文文档](./README.zh_CN.md)
-
 A lightweight solution providing standardized plugin system for Vue Router.
+
+[中文文档](./README.zh_CN.md)
 
 ---
 

@@ -1,8 +1,8 @@
 # vue-router-plugin-system
 
-[English Document](./README.md)
-
 为 Vue Router 提供标准化插件系统的轻量级解决方案。
+
+[English Document](./README.md)
 
 ---
 
