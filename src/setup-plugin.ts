@@ -1,12 +1,6 @@
 import type { Router } from 'vue-router'
 import type { RouterPlugin } from './plugin'
-import { effectScope } from 'vue'
-import {
-  APP_KEY,
-  EFFECT_SCOPE_KEY,
-  RUN_WITH_APP_HANDLERS_KEY,
-  UNINSTALL_HANDLERS_KEY,
-} from './meta-keys'
+import { getInternals } from './internals'
 
 /**
  * 安装单一插件
@@ -18,28 +12,26 @@ export function setupPlugin({
   router: Router
   plugin: RouterPlugin
 }): void {
-  const scope = (router[EFFECT_SCOPE_KEY] ??= effectScope(true))
+  const internals = getInternals(router)
   // 在 scope 中运行插件
-  scope.run(() => {
+  internals.effectScope.run(() => {
     plugin({
       router,
       onUninstall(handler) {
-        const handlers = (router[UNINSTALL_HANDLERS_KEY] ??= [])
-        handlers.push(handler)
+        internals.uninstallHandlers.push(handler)
       },
       runWithApp(handler) {
         // 在 scope 中运行 handler
         const rawHandler = handler
         handler = (...args) => {
-          return scope.run(() => rawHandler(...args))
+          return internals.effectScope.run(() => rawHandler(...args))
         }
 
-        if (router[APP_KEY]) {
-          handler(router[APP_KEY])
+        if (internals.app) {
+          handler(internals.app)
         }
         else {
-          const handlers = (router[RUN_WITH_APP_HANDLERS_KEY] ??= [])
-          handlers.push(handler)
+          internals.runWithAppHandlers.push(handler)
         }
       },
     })

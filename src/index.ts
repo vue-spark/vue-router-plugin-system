@@ -1,4 +1,5 @@
-export * from './as-vue-plugin'
 export * from './create-router'
-export * from './create-vue-router-plugin'
+export * from './deprecated/as-vue-plugin'
+export * from './deprecated/create-vue-router-plugin'
 export * from './plugin'
+export * from './with-install'
