@@ -1,7 +1,7 @@
 {
   "name": "vue-router-plugin-system",
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "packageManager": "pnpm@10.17.0",
   "description": "A standardized plugin system for Vue Router with a unified installation mechanism.",
   "author": "leihaohao <https://github.com/l246804>",
