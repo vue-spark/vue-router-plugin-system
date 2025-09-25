@@ -1,147 +1,143 @@
 # vue-router-plugin-system
 
-A lightweight solution providing standardized plugin system for Vue Router.
+Standardized plugin system and unified installation mechanism for Vue Router.
 
 [中文文档](./README.zh_CN.md)
-
----
-
-## 🌟 Core Features
-
-| Feature                                | Description                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------------- |
-| 🧱 **Standardized Plugin Interface**   | Unified plugin development specification with auto-registration/uninstallation   |
-| 🔁 **Reactive Side-effect Management** | Automatic tracking/cleanup of plugin's reactive side-effects                     |
-| ⚖️ **Dual-mode Compatibility**         | Supports both Vue Router plugin system and Vue plugin system compatibility modes |
 
 ---
 
 ## 📦 Installation
 
 ```bash
-npm install vue-router-plugin-system
+npm i vue-router-plugin-system
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🧩 Two integration approaches
 
-### Mode 1: Vue Router Plugin Mode (Recommended)
+### Approach 1: As a “pre-installed dependency” (centrally installed by the application)
 
-**1. Plugin Development**
+- Suitable for: registering all router plugins on the application side, ensuring each is installed only once and shares the same internal mechanism.
+- Plugin side
+  - Only export the implementation of `RouterPlugin`; no need to implement an installation mechanism
+  - Declare this package in `peerDependencies`
+- Application side: two ways to perform centralized installation
+  1. The application uses this package’s `createRouter`
 
-```ts
-import type { RouterPlugin } from 'vue-router-plugin-system'
-import { ref } from 'vue'
+     ```ts
+     import { BarPlugin, FooPlugin } from 'some-libs'
+     import { createWebHistory } from 'vue-router'
+     import { createRouter } from 'vue-router-plugin-system'
 
-export const NavigationStatePlugin: RouterPlugin = (ctx) => {
-  // Extend reactive navigation state
-  ctx.router.isNavigating = ref(false)
+     const router = createRouter({
+       history: createWebHistory(),
+       routes: [],
+       plugins: [FooPlugin, BarPlugin],
+     })
+     ```
 
-  // Register navigation guards
-  ctx.router.beforeEach(() => {
-    ctx.router.isNavigating.value = true
+  2. Use `withInstall` for installation adaptation
+
+     ```ts
+     import { BarPlugin, FooPlugin } from 'some-libs'
+     import { withInstall } from 'vue-router-plugin-system'
+
+     const Foo = withInstall(FooPlugin)
+     const Bar = withInstall(BarPlugin)
+
+     // Option A: install directly onto the router (can be called before app.use(router); runWithApp will be deferred)
+     Foo.install(router)
+     Bar.install(router)
+
+     // Option B: register as a Vue plugin (must call app.use(router) before app.use(Foo/Bar))
+     app.use(router)
+     app.use(Foo).use(Bar)
+     ```
+
+### Approach 2: As a “dev dependency” (installed by the app via Vue’s plugin system)
+
+- Suitable for: exposing the plugin directly as a Vue plugin (the app only needs `app.use(plugin)`).
+- Plugin side
+  - Add this package as a dev dependency, wrap the plugin with `withInstall`, and bundle it together with your build output (`dist`)
+  - Export the wrapped plugin object
+
+  ```ts
+  import { withInstall } from 'vue-router-plugin-system'
+
+  export const MyPlugin = withInstall((ctx) => {
+    // Plugin implementation
   })
-  ctx.router.afterEach(() => {
-    ctx.router.isNavigating.value = false
-  })
+  ```
 
-  // Uninstall hook
-  ctx.onUninstall(() => {
-    ctx.router.isNavigating.value = false
-  })
-}
-```
+- Application side
 
-**2. Application Integration**
+  ```ts
+  // Option A: install directly onto the router (can be called before app.use(router); runWithApp will be deferred)
+  MyPlugin.install(router)
 
-```ts
-import { createWebHistory } from 'vue-router'
-import { createRouter } from 'vue-router-plugin-system'
-import { NavigationStatePlugin } from './plugins'
-
-const router = createRouter({
-  history: createWebHistory(),
-  routes: [],
-  plugins: [NavigationStatePlugin],
-})
-
-// Access extended property
-router.isNavigating.value
-```
-
-### Mode 2: Vue Plugin Mode (Compatibility)
-
-**1. Plugin Development**
-
-```ts
-import type { RouterPlugin } from 'vue-router-plugin-system'
-import { ref } from 'vue'
-
-export const NavigationStatePlugin: RouterPlugin = (ctx) => {
-  // Implementation logic remains the same
-}
-```
-
-**2. Application Integration**
-
-```ts
-// main.ts
-import { asVuePlugin } from 'vue-router-plugin-system'
-
-const app = createApp(App)
-app.use(router) // Mount router first
-app.use(asVuePlugin(NavigationStatePlugin)) // Register plugin later
-```
+  // Option B: register as a Vue plugin (must call app.use(router) before app.use(MyPlugin))
+  app.use(router)
+  app.use(MyPlugin)
+  ```
 
 ---
 
-## ⚠️ Mode Comparison
+## 🔍 Detailed API and runtime model
 
-| Feature              | Vue Router Plugin Mode     | Vue Plugin Mode               |
-| -------------------- | -------------------------- | ----------------------------- |
-| Initialization Order | Prioritized over app logic | Depends on client usage order |
-| Guard Priority       | Higher priority            | Depends on registration order |
-| Reactive Management  | Auto-cleanup               | Auto-cleanup                  |
+### RouterPlugin
 
----
-
-## 📚 Type Definitions
+Each plugin is invoked once during the application’s lifetime and receives the context object:
 
 ```ts
 interface RouterPluginContext {
-  /**
-   * Vue Router instance
-   */
   router: Router
-  /**
-   * Execute callback with Vue app instance
-   */
-  runWithApp: (handler: RouterPluginRunWithAppHandler) => void
-  /**
-   * Register uninstallation callback (supports multiple calls)
-   */
-  onUninstall: (handler: RouterPluginUninstallHandler) => void
+  runWithApp: (handler: (app: App) => void) => void
+  onUninstall: (handler: () => void) => void
 }
 
-interface RouterPlugin {
-  /**
-   * Plugin initialization function
-   */
-  (ctx: RouterPluginContext): void
-}
+type RouterPlugin = (ctx: RouterPluginContext) => void
 ```
 
----
+### EffectScope and cleanup
 
-## 🤝 Contribution Guide
+- All plugins on the same Router instance run within a shared `effectScope` (maintained by this library).
+- When `app.unmount()` is called, the `effectScope` is first stopped, then all `onUninstall` handlers are invoked in registration order, and the internal queue is cleared.
+- This ensures reactive side effects created by plugins (`watch`, `computed`, etc.) are cleaned up reliably.
 
-Contributions are welcome! Please ensure:
+### `runWithApp(handler)`
 
-1. All unit tests pass
-2. TypeScript type integrity maintained
-3. Necessary documentation added
+- Use when the plugin needs access to the Vue App instance (e.g. `provide/inject`, global config).
+- Behavior:
+  - If the `router` has already been installed into the `app`, the `handler` executes immediately (inside the `effectScope`).
+  - If not yet installed, it is queued and flushed in registration order after `app.use(router)`.
+
+### `onUninstall(handler)`
+
+- Register one-off cleanup logic to run when the application is unmounted.
+- Note: Since the `effectScope` has been stopped before `onUninstall` runs, reactive effects will no longer trigger during cleanup; release non-reactive resources here (timers, subscriptions, DOM, etc.).
+
+### `createRouter(options)`
+
+- Equivalent to `vue-router`’s `createRouter`, with an extra `options.plugins: RouterPlugin[]` to register plugins at creation time.
+- Installation order follows the array order; corresponding `runWithApp` handlers are flushed in the same order after `app.use(router)`.
+
+### `withInstall(plugin)`
+
+- Wraps a `RouterPlugin` so it supports both installation modes:
+  - Via Vue’s plugin system: `app.use(Plugin)` (the `router` must be installed first)
+  - Install directly onto the Router: `Plugin.install(router)` (can be called before or after `app.use(router)`)
+- Details:
+  - Calling `app.use(Plugin)` before the `router` is installed will throw an error
+  - The internal wrapping of `router.install` is idempotent: each Router is wrapped only once
+
+### Installation order and idempotency
+
+- Plugins initialize in registration order.
+- `runWithApp` handlers are flushed in registration order after `app.use(router)`.
+- Each Router instance’s `install` will only be wrapped once.
+- This library does not de-duplicate multiple registrations of the same plugin—if you need deduplication, enforce it at the call site.
 
 ## License
 
-[MIT](./LICENSE) License © 2025 [leihaohao](https://github.com/l246804)
+[MIT](./LICENSE) © 2025 [leihaohao](https://github.com/l246804)
