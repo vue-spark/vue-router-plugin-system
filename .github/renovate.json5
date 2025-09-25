@@ -1,4 +1,5 @@
 {
   extends: ['github>sxzz/renovate-config'],
   automerge: true,
+  ignorePaths: ['.github/workflows/**/*'],
 }
