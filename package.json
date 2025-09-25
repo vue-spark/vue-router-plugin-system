@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.1.0",
   "packageManager": "pnpm@10.17.0",
-  "description": "A lightweight solution providing standardized plugin system for Vue Router.",
+  "description": "A standardized plugin system for Vue Router with a unified installation mechanism.",
   "author": "leihaohao <https://github.com/l246804>",
   "license": "MIT",
   "homepage": "https://github.com/vue-spark/vue-router-plugin-system#readme",
