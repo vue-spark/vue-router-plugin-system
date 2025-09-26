@@ -1,5 +1,5 @@
 import type { Router } from 'vue-router'
-import type { RouterPlugin } from './plugin'
+import type { RouterPlugin, RouterPluginContext } from './plugin'
 import { getInternals } from './internals'
 
 /**
@@ -15,16 +15,23 @@ export function setupPlugin({
   const internals = getInternals(router)
   // 在 scope 中运行插件
   internals.effectScope.run(() => {
-    plugin({
+    const ctx: RouterPluginContext = {
       router,
       onUninstall(handler) {
         internals.uninstallHandlers.push(handler)
       },
       runWithApp(handler) {
+        ctx.runWithAppContext(handler)
+      },
+      runWithAppContext(handler) {
         // 在 scope 中运行 handler
         const rawHandler = handler
         handler = (...args) => {
-          return internals.effectScope.run(() => rawHandler(...args))
+          const [app] = args
+          return internals.effectScope.run(() =>
+            // 在 app context 中运行 handler
+            app.runWithContext(() => rawHandler(...args)),
+          )
         }
 
         if (internals.app) {
@@ -34,6 +41,8 @@ export function setupPlugin({
           internals.runWithAppHandlers.push(handler)
         }
       },
-    })
+    }
+
+    plugin(ctx)
   })
 }
