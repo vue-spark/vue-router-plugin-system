@@ -1,3 +1,4 @@
+export * from './batch-install'
 export * from './create-router'
 export * from './deprecated/as-vue-plugin'
 export * from './deprecated/create-vue-router-plugin'

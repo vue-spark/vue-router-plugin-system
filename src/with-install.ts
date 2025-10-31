@@ -13,6 +13,12 @@ export interface RouterPluginInstall {
   install: (instance: App | Router) => void
 }
 
+const WITH_INSTALL = '__WITH_INSTALL__'
+
+type RouterPluginInternal = RouterPlugin & {
+  [WITH_INSTALL]?: true
+}
+
 /**
  * Add an `install` method to the plugin to adapt it to Vue's plugin registration mechanism,
  * or to manually install the plugin with an router instance.
@@ -34,7 +40,13 @@ export interface RouterPluginInstall {
 export function withInstall(
   plugin: RouterPlugin,
 ): RouterPlugin & RouterPluginInstall {
+  if ((plugin as RouterPluginInternal)[WITH_INSTALL]) {
+    return plugin as RouterPlugin & RouterPluginInstall
+  }
+
   return Object.assign(plugin, {
+    [WITH_INSTALL]: true,
+
     install(instance: App | Router) {
       if (isRouter(instance)) {
         overrideRouterInstall(instance)
