@@ -9,87 +9,166 @@
 
 ---
 
-## 安装
+## 背景
+
+在 Vue 应用开发中，我们经常需要围绕 Vue Router 开发各种功能，比如页面导航方向、跨页面通信、滚动位置还原等。这些功能本可以作为 Vue Router 的扩展独立开发，但由于 Vue Router 官方并不支持插件机制，我们不得不将它们作为 Vue 插件来实现，这带来了以下问题：
+
+<details>
+<summary><b>插件的职责模糊不清</b></summary>
+
+以页面缓存插件为例，它本应为 Vue Router 提供功能，却必须作为 Vue 插件开发，这让人感觉关注点有所偏离：
+
+```ts
+import type { ComputedRef, Plugin } from 'vue'
+
+declare module 'vue-router' {
+  interface Router {
+    keepAlive: {
+      pages: ComputedRef<string[]>
+      add: (page: string) => void
+      remove: (page: string) => void
+    }
+  }
+}
+
+export const KeepAlivePlugin: Plugin = (app) => {
+  const router = app.config.globalProperties.$router
+  if (!router) {
+    throw new Error('[KeepAlivePlugin] 请先安装 Vue Router.')
+  }
+
+  const keepAlivePageSet = shallowReactive(new Set<string>())
+  const keepAlivePages = computed(() => Array.from(keepAlivePageSet))
+
+  router.keepAlive = {
+    pages: keepAlivePages,
+    add: (page: string) => keepAlivePageSet.add(page),
+    remove: (page: string) => keepAlivePageSet.delete(page),
+  }
+
+  // 在路由变化时自动更新缓存列表
+  router.afterEach((to, from) => {
+    if (to.meta.keepAlive) {
+      keepAlivePageSet.add(to.fullPath)
+    }
+  })
+}
+```
+
+</details>
+
+<details>
+<summary><b>需要手动清理响应式副作用</b></summary>
+
+仍以页面缓存插件为例，我们需要使用 `effectScope` 创建响应式副作用，并在应用卸载时手动停止：
+
+```ts
+import { effectScope } from 'vue'
+
+// ...
+
+export const KeepAlivePlugin: Plugin = (app) => {
+  // ...
+
+  const scope = effectScope(true)
+  const keepAlivePageSet = scope.run(() => shallowReactive(new Set<string>()))!
+  const keepAlivePages = scope.run(() =>
+    computed(() => Array.from(keepAlivePageSet)),
+  )!
+
+  // ...
+
+  app.onUnmount(() => {
+    scope.stop()
+    keepAlivePageSet.clear()
+  })
+}
+```
+
+</details>
+
+<details>
+<summary><b>插件初始化时机问题</b></summary>
+
+Vue Router 的 `createRouter()` 和 `app.use(router)` 是分离的，无法在创建 Router 时立即安装扩展插件，这可能导致插件功能在初始化之前就被调用：
+
+```ts
+// src/router/index.ts
+export const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    {
+      path: '/home',
+      component: HomeView,
+    },
+  ],
+})
+
+// KeepAlivePlugin 的类型扩展已生效，但插件可能尚未初始化
+// 手动调用插件方法
+router.keepAlive.add('/home')
+```
+
+```ts
+// main.ts
+app.use(router).use(KeepAlivePlugin)
+```
+
+</details>
+
+<br>
+
+本库旨在提供标准化的插件接口和多种安装策略，让路由扩展功能的开发和集成变得简单、高效、可复用。
+
+---
+
+## 快速开始
+
+### 安装
 
 ```bash
 npm install vue-router-plugin-system
 ```
 
-## 背景
+### 插件开发
 
-在 Vue 应用开发中，我们经常需要开发一些与路由强相关的功能，如权限控制、页面缓存等。但是目前 Vue Router 官方并不支持插件机制，导致必须将插件作为 Vue 插件来开发，这会存在以下问题：
-
-- 插件的职责模糊不清，要为 Vue Router 提供功能，又无法确保插件安装在 Vue Router 之后
-  ```ts
-  // 无法确保 MyPlugin 在 Vue Router 之后安装
-  app.use(MyPlugin).use(router)
-  ```
-- Vue Router 的 `createRouter` 和 `app.use(router)` 分离，无法在创建 Router 时立即安装扩展插件，这会导致插件功能调用可能早于插件初始化的问题
-
-  ```ts
-  // router.ts
-  const router = createRouter({
-    history: createWebHistory(),
-    routes: [],
-  })
-
-  // 在 router.ts 或其他文件顶级作用域中使用时，
-  // 插件的类型扩展已存在，但插件可能尚未初始化
-  router.myPlugin.fn()
-
-  // main.ts
-  Promise.resolve().then(() => {
-    app.use(router).use(MyPlugin)
-  })
-  ```
-
-### 解决方案
-
-**vue-router-plugin-system** 提供了标准化的插件接口和多种安装策略，让路由扩展功能的开发和集成变得简单、高效、可复用。
-
----
-
-## 核心特性
-
-### 标准化插件接口
-
-提供统一的 `RouterPlugin` 接口，让所有路由扩展功能都有标准的实现方式：
+一个完整的插件示例：
 
 ```ts
-type RouterPlugin = (ctx: RouterPluginContext) => void
+import type { RouterPlugin } from 'vue-router-plugin-system'
+import { inject, watch } from 'vue'
 
-interface RouterPluginContext {
-  router: Router // Vue Router 实例
-  runWithAppContext: (handler: (app: App) => void) => void // 在 App 上下文中执行
-  onUninstall: (handler: () => void) => void // 注册清理回调
-}
-```
+const LoggerPlugin: RouterPlugin = ({
+  router,
+  runWithAppContext,
+  onUninstall,
+}) => {
+  // 添加路由守卫
+  router.beforeEach((to, from, next) => {
+    console.log(`路由跳转: ${from.path} → ${to.path}`)
+    next()
+  })
 
-### 响应式副作用管理
+  // 需要 App 上下文时使用（如 inject、pinia store 等）
+  runWithAppContext(() => {
+    const theme = inject('theme', 'light')
+    watch(router.currentRoute, (route) => {
+      console.log('当前路由:', route.path, '主题:', theme)
+    })
+  })
 
-在插件函数作用域及 `runWithAppContext` 回调中创建的响应式副作用（`watch`、`computed` 等）会自动在插件卸载时清理，无需手动处理。
-
-```ts
-import { watch } from 'vue'
-
-const MyPlugin: RouterPlugin = ({ router }) => {
-  router.myPlugin = {
-    data: ref([]),
-  }
-
-  watch(router.currentRoute, (route) => {
-    router.myPlugin.data.value = route.matched.map(match => match.meta.title)
+  // 注册清理逻辑
+  onUninstall(() => {
+    console.log('插件正在清理')
   })
 }
 ```
 
----
+### 集成方式
 
-## 集成方式
+#### 方案一：插件库集成
 
-### 方案一：插件库集成
-
-#### 插件库开发
+##### 插件库开发
 
 ```ts
 // 将此包作为开发依赖，用 withInstall 包装插件并打包到 dist 中
@@ -108,12 +187,12 @@ export default MyRouterPlugin
 // package.json
 {
   "devDependencies": {
-    "vue-router-plugin-system": "^1.0.0"
+    "vue-router-plugin-system": "latest"
   }
 }
 ```
 
-#### 应用侧安装
+##### 应用侧安装
 
 ```ts
 import MyRouterPlugin from 'some-plugin-package'
@@ -126,13 +205,11 @@ app.use(router)
 app.use(MyRouterPlugin)
 ```
 
----
+#### 方案二：应用内部插件集成
 
-### 方案二：应用内部插件集成
+对于应用内部开发的路由插件，可以在应用侧统一注册和管理。
 
-应用内部开发的路由插件，希望在应用侧统一注册和管理。
-
-#### 内部插件开发
+##### 内部插件开发
 
 ```ts
 // 只需导出 RouterPlugin 实现
@@ -161,7 +238,7 @@ export const CachePlugin: RouterPlugin = ({
 }
 ```
 
-#### 应用侧安装
+##### 应用侧安装
 
 **使用 `batchInstall`**
 
@@ -194,198 +271,59 @@ const router = createRouter({
 })
 ```
 
-## 插件开发指南
+---
+
+## 核心特性
+
+### 标准化插件接口
+
+提供统一的 `RouterPlugin` 接口：
 
 ```ts
-import type { RouterPlugin } from 'vue-router-plugin-system'
-import { inject, watch } from 'vue'
+type RouterPlugin = (ctx: RouterPluginContext) => void
 
-const LoggerPlugin: RouterPlugin = ({
-  router,
-  runWithAppContext,
-  onUninstall,
-}) => {
-  console.log('插件初始化:', router)
-
-  // 添加路由守卫
-  router.beforeEach((to, from, next) => {
-    console.log(`路由跳转: ${from.path} → ${to.path}`)
-    next()
-  })
-
-  // 需要 Vue App 上下文时使用
-  runWithAppContext((app) => {
-    console.log('Vue 应用已就绪:', app)
-
-    // 可以使用 inject、provide 等 Vue 上下文 API
-    const theme = inject('theme', 'light')
-    console.log('当前主题:', theme)
-
-    // 创建响应式效果（会自动清理）
-    watch(router.currentRoute, (route) => {
-      console.log('当前路由:', route.path)
-    })
-  })
-
-  // 注册清理逻辑
-  onUninstall(() => {
-    console.log('插件正在清理')
-  })
+interface RouterPluginContext {
+  router: Router // Vue Router 实例
+  runWithAppContext: (handler: (app: App) => void) => void // 在 App 上下文中执行
+  onUninstall: (handler: () => void) => void // 注册清理回调
 }
 ```
 
-### 实用插件示例
+### 自动清理响应式副作用
 
-#### 页面标题插件
-
-```ts
-export interface TitlePluginOptions {
-  titleTemplate?: (title: string) => string
-}
-
-// 当插件需要配置项时，可以通过工厂函数创建插件
-export function TitlePlugin({
-  titleTemplate = t => t,
-}: TitlePluginOptions): RouterPlugin {
-  return ({ router, runWithAppContext }) => {
-    // 在 App 安装就绪后监听路由变化并更新标题
-    runWithAppContext(() => {
-      watchEffect(() => {
-        const title = router.currentRoute.value.meta.title
-        if (!title) {
-          return
-        }
-
-        document.title = titleTemplate(title)
-      })
-    })
-  }
-}
-```
-
-#### 进度条插件
-
-```ts
-const ProgressPlugin: RouterPlugin = ({ router }) => {
-  router.beforeEach((to, from, next) => {
-    NProgress.start()
-    next()
-  })
-
-  router.afterEach(() => {
-    NProgress.done()
-  })
-}
-```
+插件中创建的响应式副作用（`watch`、`computed` 等）会在卸载时自动清理，无需手动管理 `effectScope`。
 
 ---
 
 ## API 参考
 
-### RouterPlugin
+### 核心 API
 
-插件函数类型定义：
+**`createRouter(options)`** - 扩展版路由创建函数，支持 `plugins` 选项
 
-```ts
-type RouterPlugin = (ctx: RouterPluginContext) => void
-```
+**`withInstall(plugin)`** - 包装插件，支持 `app.use()` 和 `Plugin.install(router)` 两种安装方式
 
-### RouterPluginContext
+**`batchInstall(router, plugins)`** - 批量安装多个插件
 
-插件上下文对象：
+### 插件上下文
 
 ```ts
 interface RouterPluginContext {
-  router: Router
-  runWithAppContext: (handler: (app: App) => void) => void
-  onUninstall: (handler: () => void) => void
+  router: Router // Vue Router 实例
+  runWithAppContext: (handler: (app: App) => void) => void // 在 App 上下文中执行
+  onUninstall: (handler: () => void) => void // 注册清理回调
 }
 ```
 
-#### `router: Router`
+- **`router`** - 用于添加路由守卫、访问路由信息、编程式导航
+- **`runWithAppContext`** - 当需要使用 `inject()`、pinia store 等 App 上下文 API 时使用
+- **`onUninstall`** - 注册清理回调，在应用卸载时按顺序执行
 
-Vue Router 实例，可以用来：
+### 生命周期
 
-- 添加路由守卫
-- 访问当前路由信息
-- 进行编程式导航
-
-#### `runWithAppContext(handler)`
-
-在 Vue App 上下文中执行代码：
-
-- **何时使用**：当需要使用 `inject()` 等依赖注入 API 时。这在注入像 `pinia stores` 这样的全局属性时很有用。
-  ```ts
-  runWithAppContext(() => {
-    const global = inject('global') // 'hello injections'
-    // 获取 pinia store
-    const userStore = useAuthStore()
-    // ...
-  })
-  ```
-- **自动清理**：回调函数在独立的 `effectScope` 中执行，其中创建的响应式副作用会自动清理。
-
-#### `onUninstall(handler)`
-
-注册清理回调：
-
-- **执行时机**：应用卸载时调用
-- **执行顺序**：按注册顺序执行
-
-### createRouter(options)
-
-扩展版的路由创建函数：
-
-```ts
-interface RouterOptions extends VueRouter.RouterOptions {
-  // 新增插件选项
-  plugins?: RouterPlugin[]
-}
-
-function createRouter(options: RouterOptions): VueRouter.Router
-```
-
-### withInstall(plugin)
-
-将 `RouterPlugin` 包装为支持两种安装模式的插件：
-
-```ts
-interface RouterPluginInstall {
-  install: (instance: App | Router) => void
-}
-
-function withInstall(plugin: RouterPlugin): RouterPlugin & RouterPluginInstall
-```
-
-**特性**：
-
-- 支持 Vue 插件系统：`app.use(Plugin)`
-- 支持直接安装到路由：`Plugin.install(router)`
-
-### batchInstall(router, plugins)
-
-批量安装多个插件到路由实例上，等价于对每个插件调用 `plugin.install(router)`：
-
-```ts
-function batchInstall(router: Router, plugins: RouterPlugin[]): void
-```
-
-### 生命周期和清理机制
-
-#### EffectScope 管理
-
-- 同一 Router 实例上的所有插件在共享的 `effectScope` 中运行
-- 当 `app.unmount()` 调用时：
-  1. 首先停止 `effectScope`
-  2. 然后按注册顺序调用所有 `onUninstall` 处理器
-- 确保插件创建的响应式副作用（`watch`、`computed` 等）得到可靠清理
-
-#### 安装顺序和幂等性
-
-- 插件按注册顺序初始化
-- `runWithAppContext` 处理器在 `app.use(router)` 后按注册顺序执行
+- 所有插件在共享的 `effectScope` 中运行，响应式副作用自动清理
+- 插件按注册顺序初始化和清理
 - 每个 Router 实例的 `install` 只会被包装一次
-- 本库不会对同一插件的多次注册进行去重，如需去重请在调用方实现
 
 ---
 
