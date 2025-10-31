@@ -13,7 +13,7 @@ export function overrideRouterInstall(router: Router): void {
     return
   }
 
-  // 避免重复重写
+  // 避免多次重写
   internals.isInstallOverridden = true
 
   // 重写 install 方法
