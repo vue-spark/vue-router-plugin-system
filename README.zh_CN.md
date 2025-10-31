@@ -1,6 +1,6 @@
 # vue-router-plugin-system
 
-**为 Vue Router 提供标准化的插件系统与统一的安装机制**
+**为 Vue Router 提供标准化的插件系统与统一的安装机制。**
 
 [![npm version](https://badge.fury.io/js/vue-router-plugin-system.svg)](https://badge.fury.io/js/vue-router-plugin-system)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -15,25 +15,37 @@
 npm install vue-router-plugin-system
 ```
 
-## 为什么需要插件系统？
+## 背景
 
-在现代 Vue 应用开发中，我们经常需要为路由添加各种功能：
+在 Vue 应用开发中，我们经常需要开发一些与路由强相关的功能，如权限控制、页面缓存等。但是目前 Vue Router 官方并不支持插件机制，导致必须将插件作为 Vue 插件来开发，这会存在以下问题：
 
-- **权限控制** - 路由守卫、角色验证
-- **页面缓存** - keep-alive 管理、缓存策略
-- **埋点统计** - 页面访问追踪、用户行为分析
-- **进度条显示** - 路由切换加载状态
+- 插件的职责模糊不清，要为 Vue Router 提供功能，又无法确保插件安装在 Vue Router 之后
+  ```ts
+  // 无法确保 MyPlugin 在 Vue Router 之后安装
+  app.use(MyPlugin).use(router)
+  ```
+- Vue Router 的 `createRouter` 和 `app.use(router)` 分离，无法在创建 Router 时立即安装扩展插件，这会导致插件功能调用可能早于插件初始化的问题
 
-### 传统做法的痛点
+  ```ts
+  // router.ts
+  const router = createRouter({
+    history: createWebHistory(),
+    routes: [],
+  })
 
-- **代码分散** - 路由相关逻辑散落在各个文件中，难以统一管理
-- **难以复用** - 同样的功能在不同项目中重复实现，缺乏标准化
-- **维护困难** - 功能耦合严重，修改一处可能影响多处
-- **生命周期混乱** - 缺乏统一的安装和清理机制，容易造成内存泄漏
+  // 在 router.ts 或其他文件顶级作用域中使用时，
+  // 插件的类型扩展已存在，但插件可能尚未初始化
+  router.myPlugin.fn()
+
+  // main.ts
+  Promise.resolve().then(() => {
+    app.use(router).use(MyPlugin)
+  })
+  ```
 
 ### 解决方案
 
-**vue-router-plugin-system** 提供了标准化的插件接口和统一的生命周期管理，让路由扩展功能的开发和使用变得简单、可靠、可复用。
+**vue-router-plugin-system** 提供了标准化的插件接口和多种安装策略，让路由扩展功能的开发和集成变得简单、高效、可复用。
 
 ---
 
@@ -43,7 +55,7 @@ npm install vue-router-plugin-system
 
 提供统一的 `RouterPlugin` 接口，让所有路由扩展功能都有标准的实现方式：
 
-```typescript
+```ts
 type RouterPlugin = (ctx: RouterPluginContext) => void
 
 interface RouterPluginContext {
@@ -53,17 +65,23 @@ interface RouterPluginContext {
 }
 ```
 
-### 自动化生命周期管理
+### 响应式副作用管理
 
-- **智能初始化** - 插件按注册顺序初始化
-- **响应式清理** - 基于 `effectScope` 自动清理响应式副作用
-- **优雅卸载** - 应用卸载时自动调用清理回调，防止内存泄漏
+在插件函数作用域及 `runWithAppContext` 回调中创建的响应式副作用（`watch`、`computed` 等）会自动在插件卸载时清理，无需手动处理。
 
-### 类型安全
+```ts
+import { watch } from 'vue'
 
-- 完整的 TypeScript 支持
-- 严格的类型检查
-- 智能的代码提示和补全
+const MyPlugin: RouterPlugin = ({ router }) => {
+  router.myPlugin = {
+    data: ref([]),
+  }
+
+  watch(router.currentRoute, (route) => {
+    router.myPlugin.data.value = route.matched.map(match => match.meta.title)
+  })
+}
+```
 
 ---
 
@@ -73,7 +91,7 @@ interface RouterPluginContext {
 
 #### 插件库开发
 
-```typescript
+```ts
 // 将此包作为开发依赖，用 withInstall 包装插件并打包到 dist 中
 import { withInstall } from 'vue-router-plugin-system'
 
@@ -97,13 +115,13 @@ export default MyRouterPlugin
 
 #### 应用侧安装
 
-```typescript
+```ts
 import MyRouterPlugin from 'some-plugin-package'
 
-// 选项 A：直接安装到路由实例
+// 选项 A：直接安装到路由实例，推荐紧跟在 createRouter 之后调用
 MyRouterPlugin.install(router)
 
-// 选项 B：作为 Vue 插件注册
+// 选项 B：作为 Vue 插件注册，必须在 Vue Router 之后，否则会抛出异常
 app.use(router)
 app.use(MyRouterPlugin)
 ```
@@ -116,8 +134,8 @@ app.use(MyRouterPlugin)
 
 #### 内部插件开发
 
-```typescript
-// 只需导出 RouterPlugin 实现，无需实现安装机制
+```ts
+// 只需导出 RouterPlugin 实现
 import type { RouterPlugin } from 'vue-router-plugin-system'
 
 // src/router/plugins/auth.ts
@@ -145,9 +163,25 @@ export const CachePlugin: RouterPlugin = ({
 
 #### 应用侧安装
 
+**使用 `batchInstall`**
+
+```ts
+// router.ts
+import { batchInstall } from 'vue-router-plugin-system'
+import { AuthPlugin, CachePlugin } from './plugins'
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [],
+})
+
+// 紧跟在 createRouter 之后调用
+batchInstall(router, [AuthPlugin, CachePlugin])
+```
+
 **使用 `createRouter`**
 
-```typescript
+```ts
 import { createWebHistory } from 'vue-router'
 import { createRouter } from 'vue-router-plugin-system'
 import { AuthPlugin, CachePlugin } from './plugins'
@@ -155,13 +189,14 @@ import { AuthPlugin, CachePlugin } from './plugins'
 const router = createRouter({
   history: createWebHistory(),
   routes: [],
-  plugins: [AuthPlugin, CachePlugin], // 一次性注册所有插件
+  // 新增插件选项
+  plugins: [AuthPlugin, CachePlugin],
 })
 ```
 
 ## 插件开发指南
 
-```typescript
+```ts
 import type { RouterPlugin } from 'vue-router-plugin-system'
 import { inject, watch } from 'vue'
 
@@ -201,50 +236,36 @@ const LoggerPlugin: RouterPlugin = ({
 
 ### 实用插件示例
 
-#### 权限控制插件
-
-```typescript
-const AuthPlugin: RouterPlugin = ({ router }) => {
-  router.beforeEach(async (to, from, next) => {
-    if (to.meta.requiresAuth) {
-      // 检查用户认证状态（需要自行实现）
-      const isAuthenticated = await checkUserAuth()
-      if (!isAuthenticated) {
-        next('/login')
-        return
-      }
-    }
-    next()
-  })
-}
-
-// 示例：用户认证检查函数
-async function checkUserAuth(): Promise<boolean> {
-  // 实际项目中可能从 localStorage、API 等获取认证状态
-  return localStorage.getItem('token') !== null
-}
-```
-
 #### 页面标题插件
 
-```typescript
-const TitlePlugin: RouterPlugin = ({ router, runWithAppContext }) => {
-  // 在 app 安装就绪后监听路由变化并更新标题
-  runWithAppContext(() => {
-    watch(
-      router.currentRoute,
-      (route) => {
-        document.title = route.meta.title || 'Default Title'
-      },
-      { immediate: true },
-    )
-  })
+```ts
+export interface TitlePluginOptions {
+  titleTemplate?: (title: string) => string
+}
+
+// 当插件需要配置项时，可以通过工厂函数创建插件
+export function TitlePlugin({
+  titleTemplate = t => t,
+}: TitlePluginOptions): RouterPlugin {
+  return ({ router, runWithAppContext }) => {
+    // 在 App 安装就绪后监听路由变化并更新标题
+    runWithAppContext(() => {
+      watchEffect(() => {
+        const title = router.currentRoute.value.meta.title
+        if (!title) {
+          return
+        }
+
+        document.title = titleTemplate(title)
+      })
+    })
+  }
 }
 ```
 
 #### 进度条插件
 
-```typescript
+```ts
 const ProgressPlugin: RouterPlugin = ({ router }) => {
   router.beforeEach((to, from, next) => {
     NProgress.start()
@@ -265,7 +286,7 @@ const ProgressPlugin: RouterPlugin = ({ router }) => {
 
 插件函数类型定义：
 
-```typescript
+```ts
 type RouterPlugin = (ctx: RouterPluginContext) => void
 ```
 
@@ -273,7 +294,7 @@ type RouterPlugin = (ctx: RouterPluginContext) => void
 
 插件上下文对象：
 
-```typescript
+```ts
 interface RouterPluginContext {
   router: Router
   runWithAppContext: (handler: (app: App) => void) => void
@@ -293,11 +314,16 @@ Vue Router 实例，可以用来：
 
 在 Vue App 上下文中执行代码：
 
-- **何时使用**：需要访问 Vue App 实例时（如 `provide/inject`、全局配置等）
-- **执行时机**：
-  - 如果路由已安装到应用中，立即执行
-  - 如果尚未安装，会排队等待 `app.use(router)` 后按注册顺序执行
-- **自动清理**：在 `effectScope` 中执行，响应式副作用会自动清理
+- **何时使用**：当需要使用 `inject()` 等依赖注入 API 时。这在注入像 `pinia stores` 这样的全局属性时很有用。
+  ```ts
+  runWithAppContext(() => {
+    const global = inject('global') // 'hello injections'
+    // 获取 pinia store
+    const userStore = useAuthStore()
+    // ...
+  })
+  ```
+- **自动清理**：回调函数在独立的 `effectScope` 中执行，其中创建的响应式副作用会自动清理。
 
 #### `onUninstall(handler)`
 
@@ -305,29 +331,25 @@ Vue Router 实例，可以用来：
 
 - **执行时机**：应用卸载时调用
 - **执行顺序**：按注册顺序执行
-- **注意事项**：此时 `effectScope` 已停止，响应式效果不再触发
 
 ### createRouter(options)
 
 扩展版的路由创建函数：
 
-```typescript
-interface RouterOptions {
-  // 继承 vue-router 的所有选项
-  history: RouterHistory
-  routes: RouteRecordRaw[]
+```ts
+interface RouterOptions extends VueRouter.RouterOptions {
   // 新增插件选项
   plugins?: RouterPlugin[]
 }
 
-function createRouter(options: RouterOptions): Router
+function createRouter(options: RouterOptions): VueRouter.Router
 ```
 
 ### withInstall(plugin)
 
-将 RouterPlugin 包装为支持两种安装模式的插件：
+将 `RouterPlugin` 包装为支持两种安装模式的插件：
 
-```typescript
+```ts
 interface RouterPluginInstall {
   install: (instance: App | Router) => void
 }
@@ -339,8 +361,14 @@ function withInstall(plugin: RouterPlugin): RouterPlugin & RouterPluginInstall
 
 - 支持 Vue 插件系统：`app.use(Plugin)`
 - 支持直接安装到路由：`Plugin.install(router)`
-- 幂等性：每个 Router 实例只会被包装一次
-- 顺序保证：插件按注册顺序初始化
+
+### batchInstall(router, plugins)
+
+批量安装多个插件到路由实例上，等价于对每个插件调用 `plugin.install(router)`：
+
+```ts
+function batchInstall(router: Router, plugins: RouterPlugin[]): void
+```
 
 ### 生命周期和清理机制
 
@@ -350,7 +378,6 @@ function withInstall(plugin: RouterPlugin): RouterPlugin & RouterPluginInstall
 - 当 `app.unmount()` 调用时：
   1. 首先停止 `effectScope`
   2. 然后按注册顺序调用所有 `onUninstall` 处理器
-  3. 清空内部队列
 - 确保插件创建的响应式副作用（`watch`、`computed` 等）得到可靠清理
 
 #### 安装顺序和幂等性
