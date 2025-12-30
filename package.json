@@ -52,7 +52,7 @@
   "devDependencies": {
     "@antfu/eslint-config": "^6.2.0",
     "@sxzz/prettier-config": "^2.2.6",
-    "@tsconfig/node22": "^22.0.5",
+    "@tsconfig/node24": "^24.0.0",
     "@types/node": "^24.10.1",
     "@vue/tsconfig": "^0.8.1",
     "bumpp": "^10.3.2",
