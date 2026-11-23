@@ -14,9 +14,9 @@ importers:
       '@sxzz/prettier-config':
         specifier: ^2.2.6
         version: 2.2.6(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
-      '@tsconfig/node24':
-        specifier: ^24.0.0
-        version: 24.0.3
+      '@tsconfig/node26':
+        specifier: ^26.0.0
+        version: 26.0.2
       '@types/node':
         specifier: ^26.0.0
         version: 26.6.6
@@ -1162,8 +1162,8 @@ packages:
   '@sxzz/prettier-config@2.2.6':
     resolution: {integrity: sha512-YUTa7I6l/gcy2wDHd6jDyE4bwGOPvqyDc5fWGXLGPisjfeYbCBTi5Cms+Fl7MXKq+VPHoTdD587HjrMGb3J0WA==}
 
-  '@tsconfig/node24@24.0.3':
-    resolution: {integrity: sha512-vcERKtKQKHgzt/vfS3Gjasd8SUI2a0WZXpgJURdJsMySpS5+ctgbPfuLj2z/W+w4lAfTWxoN4upKfu2WzIRYnw==}
+  '@tsconfig/node26@26.0.2':
+    resolution: {integrity: sha512-RIBSoNGQxUQ8r4hSrEzS6TrUneoKaCuX6BjL4zF3wqttGq2w06zCea4d8P1gRvM/HZyDT1FQJ8trZSyy/63oMg==}
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -3788,7 +3788,7 @@ snapshots:
       - '@emnapi/core'
       - '@emnapi/runtime'
 
-  '@tsconfig/node24@24.0.3': {}
+  '@tsconfig/node26@26.0.2': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
